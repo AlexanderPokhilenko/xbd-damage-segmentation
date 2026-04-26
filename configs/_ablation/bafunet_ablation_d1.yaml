@@ -1,0 +1,28 @@
+run_name: bafunet_ablation_d1
+seed: 42
+checkpoint_dir: ./checkpoints
+data:
+  root: ./xbd_processed
+  tile_size: 256
+training:
+  epochs: 30
+  batch_size: 16
+  num_workers: 2
+  amp: true
+  early_stop_patience: 7
+  optimizer:
+    lr: 0.0001
+    weight_decay: 0.0001
+  scheduler:
+    name: cosine
+  loss:
+    dice_weight: 0.5
+    pos_weight: null
+model:
+  name: bafunet
+  params:
+    encoder_name: resnet34
+    encoder_weights: imagenet
+    in_channels: 3
+    classes: 1
+    aggre_depth: 1

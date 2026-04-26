@@ -1,0 +1,4 @@
+disaster,n,mean_dice,median_dice,mean_iou
+midwest-flooding,115,0.8069,1.0,0.7975
+santa-rosa-wildfire,223,0.7608,0.813,0.6664
+socal-fire,376,0.8694,1.0,0.8441

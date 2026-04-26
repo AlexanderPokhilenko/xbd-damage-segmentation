@@ -1,0 +1,30 @@
+{
+  "split": "test",
+  "n_tiles": 714,
+  "mean_dice": 0.8254386650591682,
+  "median_dice": 1.0,
+  "mean_iou": 0.7810940604248433,
+  "by_disaster": [
+    {
+      "disaster": "midwest-flooding",
+      "n": 115,
+      "mean_dice": 0.8069,
+      "median_dice": 1.0,
+      "mean_iou": 0.7975
+    },
+    {
+      "disaster": "santa-rosa-wildfire",
+      "n": 223,
+      "mean_dice": 0.7608,
+      "median_dice": 0.813,
+      "mean_iou": 0.6664
+    },
+    {
+      "disaster": "socal-fire",
+      "n": 376,
+      "mean_dice": 0.8694,
+      "median_dice": 1.0,
+      "mean_iou": 0.8441
+    }
+  ]
+}
