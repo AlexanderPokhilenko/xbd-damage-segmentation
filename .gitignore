@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Project data (large, regenerable)
+train/
+xbd_processed/
+data/
+checkpoints/
+logs/
+runs/
+wandb/
+
+# Output artifacts
+*.pt
+*.pth
+*.onnx
+*.npz
+
+# OS
+Thumbs.db
+.DS_Store
