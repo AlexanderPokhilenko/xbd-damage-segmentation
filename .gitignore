@@ -30,7 +30,6 @@ ENV/
 # Project data (large, regenerable)
 train/
 xbd_processed/
-data/
 checkpoints/
 logs/
 runs/
