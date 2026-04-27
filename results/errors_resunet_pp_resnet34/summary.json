@@ -1,30 +1,43 @@
 {
   "split": "test",
-  "n_tiles": 714,
-  "mean_dice": 0.8322536637435414,
-  "median_dice": 1.0,
-  "mean_iou": 0.7878625778817133,
+  "n_total": 714,
+  "n_positive": 278,
+  "n_empty": 436,
+  "positive_tile_metrics": {
+    "mean_dice": 0.6009854694067908,
+    "median_dice": 0.7441866555087797,
+    "mean_iou": 0.48689269170963306
+  },
+  "empty_tile_metrics": {
+    "mean_fpr": 0.0002994712339628727
+  },
   "by_disaster": [
     {
       "disaster": "midwest-flooding",
-      "n": 115,
-      "mean_dice": 0.824,
-      "median_dice": 1.0,
-      "mean_iou": 0.8132
+      "n_positive": 26,
+      "mean_dice": 0.2592,
+      "median_dice": 0.0,
+      "mean_iou": 0.2117,
+      "n_empty": 89,
+      "mean_fpr": 0.00026
     },
     {
       "disaster": "santa-rosa-wildfire",
-      "n": 223,
-      "mean_dice": 0.7673,
-      "median_dice": 0.804,
-      "mean_iou": 0.6732
+      "n_positive": 164,
+      "mean_dice": 0.7018,
+      "median_dice": 0.777,
+      "mean_iou": 0.5738,
+      "n_empty": 59,
+      "mean_fpr": 0.000766
     },
     {
       "disaster": "socal-fire",
-      "n": 376,
-      "mean_dice": 0.8733,
-      "median_dice": 1.0,
-      "mean_iou": 0.8481
+      "n_positive": 88,
+      "mean_dice": 0.5141,
+      "median_dice": 0.6596,
+      "mean_iou": 0.4063,
+      "n_empty": 288,
+      "mean_fpr": 0.000216
     }
   ]
 }

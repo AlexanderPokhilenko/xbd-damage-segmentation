@@ -1,15 +1,14 @@
 """Per-tile Dice analysis: distribution, breakdown by disaster, worst cases.
 
-Usage:
-    python scripts/error_analysis.py --config configs/bafunet.yaml \
-        --output-dir results/bafunet_errors
+Excludes tiles with no GT damage from Dice statistics (Dice undefined for empty GT).
+Reports false positive rate separately for negative tiles.
 """
 import sys
-import argparse
-import json
-from collections import defaultdict
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+import argparse
+import json
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -59,72 +58,129 @@ def main():
             logits = model(x)
             pred = (torch.sigmoid(logits[0, 0]).cpu().numpy() >= 0.5).astype(np.uint8)
             gt = mask.numpy().astype(np.uint8) if torch.is_tensor(mask) else mask.astype(np.uint8)
-            tp = ((pred == 1) & (gt == 1)).sum()
-            fp = ((pred == 1) & (gt == 0)).sum()
-            fn = ((pred == 0) & (gt == 1)).sum()
-            dice = (2 * tp + 1) / (2 * tp + fp + fn + 1)
-            iou = (tp + 1) / (tp + fp + fn + 1)
+            tp = int(((pred == 1) & (gt == 1)).sum())
+            fp = int(((pred == 1) & (gt == 0)).sum())
+            fn = int(((pred == 0) & (gt == 1)).sum())
+            tn = int(((pred == 0) & (gt == 0)).sum())
+            gt_pos = int((gt == 1).sum())
+            pred_pos = int((pred == 1).sum())
+            n_pixels = gt.size
+
+            has_gt = gt_pos > 0
+            # Dice/IoU only defined when GT has positive pixels OR pred has positive pixels.
+            # Strictly: skip tiles with gt_pos == 0 from positive-tile statistics.
+            if has_gt:
+                dice = 2 * tp / (2 * tp + fp + fn) if (2 * tp + fp + fn) > 0 else 0.0
+                iou = tp / (tp + fp + fn) if (tp + fp + fn) > 0 else 0.0
+            else:
+                dice = np.nan
+                iou = np.nan
+
+            # FPR for empty-GT tiles: fraction of background pixels predicted as damage
+            fpr = fp / n_pixels if not has_gt else np.nan
+
             rows.append({
                 "tile_id": meta["tile_id"],
                 "disaster": meta["disaster"],
                 "damage_ratio": meta["damage_ratio"],
-                "dice": float(dice),
-                "iou": float(iou),
-                "tp": int(tp), "fp": int(fp), "fn": int(fn),
+                "has_gt_damage": has_gt,
+                "gt_pixels": gt_pos,
+                "pred_pixels": pred_pos,
+                "tp": tp, "fp": fp, "fn": fn, "tn": tn,
+                "dice": dice,
+                "iou": iou,
+                "fpr_on_empty": fpr,
             })
 
     df = pd.DataFrame(rows)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     df.to_csv(args.output_dir / "per_tile.csv", index=False)
 
-    # Per-disaster summary
-    by_dis = df.groupby("disaster").agg(
-        n=("dice", "size"),
+    pos = df[df["has_gt_damage"]].copy()
+    neg = df[~df["has_gt_damage"]].copy()
+
+    # Per-disaster summary on POSITIVE tiles
+    by_dis = pos.groupby("disaster").agg(
+        n_positive=("dice", "size"),
         mean_dice=("dice", "mean"),
         median_dice=("dice", "median"),
         mean_iou=("iou", "mean"),
     ).round(4).reset_index()
-    by_dis.to_csv(args.output_dir / "by_disaster.csv", index=False)
-    print("\n=== By disaster ===")
-    print(by_dis.to_string(index=False))
 
-    # Histogram of Dice
+    # Add empty-tile stats per disaster
+    neg_by_dis = neg.groupby("disaster").agg(
+        n_empty=("fpr_on_empty", "size"),
+        mean_fpr=("fpr_on_empty", "mean"),
+    ).round(6).reset_index()
+
+    summary_table = by_dis.merge(neg_by_dis, on="disaster", how="left")
+
+    summary_table.to_csv(args.output_dir / "by_disaster.csv", index=False)
+    print("\n=== By disaster (positive tiles only for Dice/IoU) ===")
+    print(summary_table.to_string(index=False))
+
+    # Histogram of Dice (positive tiles only)
     fig, ax = plt.subplots(figsize=(7, 4))
-    ax.hist(df["dice"], bins=30, edgecolor="black", alpha=0.75)
-    ax.axvline(df["dice"].mean(), color="red", linestyle="--",
-               label=f"mean={df['dice'].mean():.3f}")
-    ax.set_xlabel("per-tile Dice")
+    ax.hist(pos["dice"], bins=30, edgecolor="black", alpha=0.75)
+    if len(pos):
+        ax.axvline(pos["dice"].mean(), color="red", linestyle="--",
+                   label=f"mean={pos['dice'].mean():.3f}")
+        ax.axvline(pos["dice"].median(), color="orange", linestyle=":",
+                   label=f"median={pos['dice'].median():.3f}")
+    ax.set_xlabel("per-tile Dice (positive tiles only)")
     ax.set_ylabel("count")
-    ax.set_title(f"{run_name} -- Dice distribution on {args.split}")
+    ax.set_title(f"{run_name} -- Dice distribution on {args.split} ({len(pos)} positive tiles)")
     ax.legend()
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
     fig.savefig(args.output_dir / "dice_distribution.png", dpi=120)
     plt.close(fig)
 
-    # Dice vs damage_ratio scatter
+    # Dice vs damage_ratio scatter (positive tiles only)
     fig, ax = plt.subplots(figsize=(7, 4))
-    ax.scatter(df["damage_ratio"], df["dice"], alpha=0.4, s=12)
+    ax.scatter(pos["damage_ratio"], pos["dice"], alpha=0.4, s=12)
     ax.set_xlabel("damage_ratio (fraction of damaged pixels in tile)")
     ax.set_ylabel("per-tile Dice")
-    ax.set_title("Dice vs ground-truth damage ratio")
+    ax.set_title("Dice vs ground-truth damage ratio (positive tiles)")
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
     fig.savefig(args.output_dir / "dice_vs_damage_ratio.png", dpi=120)
     plt.close(fig)
 
-    # Summary
+    # FPR distribution on empty tiles (how badly the model false-positives on clean ground)
+    if len(neg):
+        fig, ax = plt.subplots(figsize=(7, 4))
+        ax.hist(neg["fpr_on_empty"], bins=30, edgecolor="black", alpha=0.75, color="darkred")
+        ax.axvline(neg["fpr_on_empty"].mean(), color="black", linestyle="--",
+                   label=f"mean FPR={neg['fpr_on_empty'].mean():.4f}")
+        ax.set_xlabel("false-positive pixel rate (empty-GT tiles only)")
+        ax.set_ylabel("count")
+        ax.set_title(f"{run_name} -- FPR on {len(neg)} empty tiles")
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+        fig.tight_layout()
+        fig.savefig(args.output_dir / "fpr_on_empty.png", dpi=120)
+        plt.close(fig)
+
     summary = {
         "split": args.split,
-        "n_tiles": len(df),
-        "mean_dice": float(df["dice"].mean()),
-        "median_dice": float(df["dice"].median()),
-        "mean_iou": float(df["iou"].mean()),
-        "by_disaster": by_dis.to_dict(orient="records"),
+        "n_total": int(len(df)),
+        "n_positive": int(len(pos)),
+        "n_empty": int(len(neg)),
+        "positive_tile_metrics": {
+            "mean_dice": float(pos["dice"].mean()) if len(pos) else None,
+            "median_dice": float(pos["dice"].median()) if len(pos) else None,
+            "mean_iou": float(pos["iou"].mean()) if len(pos) else None,
+        },
+        "empty_tile_metrics": {
+            "mean_fpr": float(neg["fpr_on_empty"].mean()) if len(neg) else None,
+        },
+        "by_disaster": summary_table.to_dict(orient="records"),
     }
     with open(args.output_dir / "summary.json", "w") as f:
         json.dump(summary, f, indent=2)
-    print(f"\nSaved analysis to {args.output_dir}")
+    print(f"\nTotal: {len(df)} tiles ({len(pos)} positive + {len(neg)} empty)")
+    print(f"Saved analysis to {args.output_dir}")
 
 
 if __name__ == "__main__":
